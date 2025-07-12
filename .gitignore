@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.ipynb_checkpoints/
+
+# YOLO outputs
+runs/
+*.pt
+
+# Data (keep it local or host it externally)
+data/
+*.jpg
+*.png
+
+# Streamlit cache
+.streamlit/
+
+# OS / Editor
+.DS_Store
+.vscode/
