@@ -19,3 +19,5 @@ data/
 # OS / Editor
 .DS_Store
 .vscode/
+
+*.zip
