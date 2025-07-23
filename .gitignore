@@ -6,6 +6,7 @@ __pycache__/
 # YOLO outputs
 runs/
 *.pt
+*.pth
 
 # Data (keep it local or host it externally)
 data/
