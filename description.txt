@@ -1,0 +1,371 @@
+================================================================================
+         KIDNEY DISEASE CLASSIFIER - COMPLETE PROJECT DESCRIPTION
+================================================================================
+
+PROJECT TITLE: Kidney Disease Classifier using YOLOv6, YOLOv7, and YOLOv8
+
+================================================================================
+                          PROJECT OVERVIEW
+================================================================================
+
+This project is a medical image classification system that uses deep learning
+to classify CT scan images of kidneys into 4 categories:
+
+    1. Cyst      - Kidney has a cyst (fluid-filled sac)
+    2. Normal    - Kidney is healthy/normal
+    3. Stone     - Kidney has stones
+    4. Tumor     - Kidney has a tumor
+
+The project trains and compares THREE different deep learning models (labeled
+as YOLOv6, YOLOv7, and YOLOv8) and provides a web-based user interface
+(Streamlit app) where users can upload a kidney CT scan image and get a
+prediction from any of the three models.
+
+================================================================================
+                          TEXT TRACK / WORKFLOW
+              (Step-by-step of what was done and how it was done)
+================================================================================
+
+--- STEP 1: DATASET COLLECTION ---
+
+- A dataset of kidney CT scan images was collected.
+- The dataset contains approximately 12,446 images total across 4 classes:
+    * Cyst:   ~3,709 images
+    * Normal: ~5,077 images
+    * Stone:  ~1,377 images
+    * Tumor:  ~2,283 images
+- All images are in .jpg format.
+- A metadata CSV file (kidneyData.csv) was also created that logs each image's
+  ID, file path, diagnosis, numeric target label, and class name.
+
+--- STEP 2: DATASET SPLITTING ---
+
+- A Python script (split_dataset.py) was written to split the dataset into
+  training and validation sets.
+- Split ratio: 80% training, 20% validation.
+- The script:
+    1. Reads all class folders from the data/ directory.
+    2. Shuffles images randomly.
+    3. Splits them 80/20.
+    4. Copies training images to data/train/<ClassName>/
+    5. Copies validation images to data/val/<ClassName>/
+
+- Final split (approximate):
+    * Training set:   ~9,955 images
+        - Cyst:   2,967 images
+        - Normal: 4,061 images
+        - Stone:  1,101 images
+        - Tumor:  1,826 images
+    * Validation set: ~2,491 images
+        - Cyst:   742 images
+        - Normal: ~1,016 images
+        - Stone:  ~276 images
+        - Tumor:  ~457 images
+
+--- STEP 3: MODEL 1 - YOLOv6 (Custom RepVGG Architecture) ---
+
+What is it?
+- This is NOT the standard YOLOv6 object detection model.
+- Instead, the YOLOv6 repository was cloned, and a CUSTOM image classification
+  model was built using the RepVGG architecture (a type of CNN that uses
+  re-parameterizable VGG-style blocks).
+
+Architecture (RepVGG):
+- Input: 224x224 RGB image
+- Stage 0: Conv2d(3 -> 64) + BatchNorm, stride 2
+- Stage 1: RepVGGBlock(64 -> 128), stride 2
+- Stage 2: RepVGGBlock(128 -> 256), stride 2
+- Stage 3: RepVGGBlock(256 -> 512), stride 2
+- Stage 4: RepVGGBlock(512 -> 512), stride 2
+- Global Average Pooling
+- Fully Connected Layer (512 -> 4 classes)
+
+Each RepVGGBlock has:
+- A 3x3 convolution + BatchNorm branch
+- A 1x1 convolution + BatchNorm branch
+- Both branches are summed and passed through ReLU
+
+Training Details:
+- Script: YOLOv6/train_cls_v6.py
+- Optimizer: SGD (learning rate = 0.01, momentum = 0.9)
+- Loss Function: CrossEntropyLoss
+- Batch Size: 32
+- Epochs: 25 (24 in the script)
+- Mixed Precision Training: Yes (using torch.cuda.amp)
+- Data Augmentation: Random Horizontal Flip, Resize to 224x224
+- Image Normalization: ToTensor only (no ImageNet normalization during training)
+- Device: CUDA GPU
+
+Output:
+- Saved model weights: v6_classifier.pth
+
+--- STEP 4: MODEL 2 - YOLOv7 (ResNet18 from scratch) ---
+
+What is it?
+- This is NOT the standard YOLOv7 object detection model.
+- Instead, the YOLOv7 repository was cloned, and a ResNet18 model (from
+  torchvision) was trained FROM SCRATCH (no pretrained weights) for kidney
+  image classification.
+
+Architecture (ResNet18):
+- Standard ResNet18 architecture from PyTorch's torchvision library.
+- The final fully connected layer was modified: Linear(512 -> 4 classes)
+- No pretrained ImageNet weights were used (weights=None).
+
+Training Details:
+- Notebook: yolov7/not_main.ipynb
+- Optimizer: Adam (learning rate = 0.001)
+- Loss Function: CrossEntropyLoss
+- Batch Size: 32
+- Epochs: 25
+- Mixed Precision Training: Yes (using torch.amp)
+- Data Augmentation: Random Horizontal Flip, Resize to 224x224
+- Image Normalization: ToTensor only
+- Device: CUDA GPU
+
+Training Results (from notebook output):
+- Epoch 1:  Validation Accuracy = 92.85%
+- Epoch 5:  Validation Accuracy = 99.80%
+- Epoch 10: Validation Accuracy = 100.00%
+- Epoch 14: Validation Accuracy = 100.00%
+- Epoch 18: Validation Accuracy = 100.00%
+- Epoch 22: Validation Accuracy = 100.00%
+- Epoch 25: Validation Accuracy = 100.00%
+- Final loss at epoch 25: 0.00594
+
+Output:
+- Saved model weights: kidney_classifier_v7.pth
+
+--- STEP 5: MODEL 3 - YOLOv8 (Ultralytics Classification) ---
+
+What is it?
+- This uses the ACTUAL YOLOv8 classification model from the Ultralytics library.
+- A pretrained YOLOv8s-cls model (yolov8s-cls.pt) was fine-tuned on the kidney
+  dataset for image classification.
+
+Architecture:
+- YOLOv8s-cls (small classification variant from Ultralytics)
+- Pretrained on ImageNet, then fine-tuned on the kidney dataset.
+
+Training Details:
+- Configured via: runs/classify/train/args.yaml
+- Base Model: yolov8s-cls.pt (pretrained = true)
+- Image Size: 224x224
+- Optimizer: auto (Ultralytics default)
+- Batch Size: 16
+- Epochs: 50
+- Learning Rate: 0.01 (initial), 0.01 (final)
+- Momentum: 0.937
+- Weight Decay: 0.0005
+- Warmup Epochs: 3
+- AMP (Mixed Precision): Yes
+- Data Augmentation: HSV shifts, horizontal flip, scale, translate, erasing
+- Device: GPU 0
+
+Training Results (from results.csv):
+- Epoch 1:  Top-1 Accuracy = 98.31%, Val Loss = 0.05954
+- Epoch 5:  Top-1 Accuracy = 99.68%, Val Loss = 0.00771
+- Epoch 10: Top-1 Accuracy = 99.84%, Val Loss = 0.00565
+- Epoch 15: Top-1 Accuracy = 100.0%, Val Loss = 0.00216
+- Epoch 25: Top-1 Accuracy = 100.0%, Val Loss = 0.00013
+- Epoch 50: Top-1 Accuracy = 100.0%, Val Loss = 0.00006
+- Top-5 Accuracy: 100% throughout all epochs
+
+Output:
+- Saved model weights: runs/classify/train/weights/best.pt
+- Confusion matrices, training batch visualizations, and results plots saved.
+
+--- STEP 6: BUILDING THE WEB APPLICATION (Streamlit) ---
+
+What is it?
+- A web-based user interface built with Streamlit that allows users to:
+    1. Upload a kidney CT scan image
+    2. Select which model to use (YOLOv6, YOLOv7, or YOLOv8)
+    3. Get a prediction with confidence percentage
+    4. See probability distribution across all 4 classes
+
+File: app.py
+
+How it works:
+1. All three models are loaded once at startup (cached with @st.cache_resource).
+2. User uploads an image (JPG, JPEG, or PNG).
+3. User selects a model version via radio buttons.
+4. The image is preprocessed:
+   - Resized to 224x224
+   - Converted to tensor
+   - Normalized with ImageNet mean/std
+5. The selected model runs inference on the image.
+6. Results are displayed:
+   - Predicted class name
+   - Confidence percentage
+   - Bar showing probabilities for all 4 classes
+
+NOTE: In the code, YOLOv7 actually uses the same YOLOv8 model for prediction
+(both use the Ultralytics YOLO predict method). This appears to be a bug or
+simplification in the app code.
+
+--- STEP 7: TESTING ---
+
+- A test/ folder contains 10 test images (test_1.jpg through test_10.jpg)
+  for manual testing of the models.
+- Individual prediction scripts exist:
+    * YOLOv6/predict_cls_v6.py - standalone prediction for YOLOv6 model
+    * yolov7/infer_cls.py - standalone prediction for YOLOv7 model
+
+================================================================================
+                          PROJECT FILE STRUCTURE
+================================================================================
+
+Root Directory:
+├── app.py                    - Main Streamlit web application
+├── split_dataset.py          - Script to split dataset into train/val
+├── main.ipynb                - Main Jupyter notebook (YOLOv8 training)
+├── requirements.txt          - Python dependencies
+├── Readme.md                 - Brief project README
+├── kidneyData.csv            - Dataset metadata CSV
+├── kidney_classifier_v7.pth  - Trained YOLOv7 (ResNet18) model weights
+├── v6_classifier.pth         - Trained YOLOv6 (RepVGG) model weights
+├── yolov8s-cls.pt            - Pretrained YOLOv8 classification base model
+├── .gitignore                - Git ignore rules
+│
+├── data/                     - Dataset directory
+│   ├── train/                - Training images (~9,955 total)
+│   │   ├── Cyst/            - 2,967 cyst images
+│   │   ├── Normal/          - 4,061 normal images
+│   │   ├── Stone/           - 1,101 stone images
+│   │   └── Tumor/           - 1,826 tumor images
+│   └── val/                  - Validation images (~2,491 total)
+│       ├── Cyst/            - 742 cyst images
+│       ├── Normal/          - ~1,016 normal images
+│       ├── Stone/           - ~276 stone images
+│       └── Tumor/           - ~457 tumor images
+│
+├── test/                     - 10 test images for manual testing
+│
+├── runs/                     - YOLOv8 training outputs
+│   └── classify/
+│       ├── train/            - Training results
+│       │   ├── weights/      - best.pt and last.pt model files
+│       │   ├── args.yaml     - Training configuration
+│       │   ├── results.csv   - Epoch-by-epoch metrics
+│       │   ├── results.png   - Training curves plot
+│       │   ├── confusion_matrix.png
+│       │   └── confusion_matrix_normalized.png
+│       └── predict/          - Sample prediction output
+│
+├── YOLOv6/                   - Cloned YOLOv6 repository (modified)
+│   ├── train_cls_v6.py       - Custom training script for RepVGG classifier
+│   ├── predict_cls_v6.py     - Custom prediction script
+│   └── yolov6/models/repvgg.py - Custom RepVGG model architecture
+│
+└── yolov7/                   - Cloned YOLOv7 repository (modified)
+    ├── not_main.ipynb        - Training notebook for ResNet18 classifier
+    ├── infer_cls.py          - Inference/prediction script
+    └── kidney_classifier_v7.pth - Copy of trained model weights
+
+================================================================================
+                          TECHNOLOGIES USED
+================================================================================
+
+Programming Language:
+- Python 3.11
+
+Deep Learning Frameworks:
+- PyTorch (torch, torchvision) - for model building and training
+- Ultralytics (YOLO) - for YOLOv8 classification model
+
+Web Framework:
+- Streamlit - for the interactive web UI
+
+Image Processing:
+- Pillow (PIL) - for image loading and manipulation
+- torchvision.transforms - for image preprocessing
+
+Key Libraries:
+- torch          - Deep learning framework
+- torchvision    - Pretrained models and image transforms
+- ultralytics    - YOLOv8 model and training pipeline
+- streamlit      - Web application framework
+- Pillow         - Image handling
+- tqdm           - Progress bars during training
+
+Hardware Used:
+- NVIDIA GPU (CUDA) for training all models
+
+================================================================================
+                     HOW TO RUN THE PROJECT
+================================================================================
+
+1. Install dependencies:
+       pip install -r requirements.txt
+
+2. Make sure the data/ folder exists with train/ and val/ subdirectories
+   (or download from the Google Drive link in Readme.md).
+
+3. Run the Streamlit app:
+       streamlit run app.py
+
+4. Open the browser URL shown by Streamlit (usually http://localhost:8501).
+
+5. Upload a kidney CT scan image and select a model to get predictions.
+
+================================================================================
+                     MODEL COMPARISON SUMMARY
+================================================================================
+
+┌──────────────┬────────────────────┬──────────────┬────────────────────────────┐
+│ Model Name   │ Architecture       │ Epochs       │ Best Validation Accuracy   │
+├──────────────┼────────────────────┼──────────────┼────────────────────────────┤
+│ YOLOv6       │ Custom RepVGG      │ 25           │ ~99%+ (estimated)          │
+│ YOLOv7       │ ResNet18 (scratch) │ 25           │ 100.00%                    │
+│ YOLOv8       │ YOLOv8s-cls (fine) │ 50           │ 100.00%                    │
+└──────────────┴────────────────────┴──────────────┴────────────────────────────┘
+
+Key Observations:
+- All three models achieved near-perfect accuracy on the validation set.
+- YOLOv8 was the most sophisticated (pretrained + fine-tuned with augmentation).
+- YOLOv7 (ResNet18) reached 100% accuracy by epoch 10 despite training from
+  scratch, showing the dataset is relatively easy to classify.
+- YOLOv6 (RepVGG) is the lightest custom architecture.
+
+================================================================================
+                     BEGINNER-FRIENDLY EXPLANATION
+================================================================================
+
+WHAT IS THIS PROJECT?
+- Imagine you have a CT scan of someone's kidney. A doctor needs to determine
+  if the kidney is normal, has a cyst, has stones, or has a tumor.
+- This project builds an AI system that can look at the CT scan image and
+  automatically tell you what condition the kidney has.
+
+HOW DOES IT WORK? (Simple Explanation)
+1. We collected thousands of kidney CT scan images that doctors already labeled.
+2. We split these images: 80% for teaching the AI, 20% for testing it.
+3. We trained 3 different AI models (think of them as 3 different "brains"):
+   - Brain 1 (YOLOv6): A custom lightweight neural network called RepVGG
+   - Brain 2 (YOLOv7): A well-known neural network called ResNet18
+   - Brain 3 (YOLOv8): A modern, powerful model from Ultralytics
+4. Each "brain" learned to recognize patterns in the images.
+5. We built a website where you can upload an image and pick which brain to use.
+6. The AI gives you its answer with a confidence percentage.
+
+WHAT IS A NEURAL NETWORK? (For Beginners)
+- A neural network is a computer program inspired by the human brain.
+- It has layers of "neurons" that process information.
+- During training, it looks at thousands of images and learns patterns.
+- After training, it can look at a NEW image it has never seen and make a guess.
+
+WHAT IS IMAGE CLASSIFICATION?
+- It means looking at an image and putting it into a category.
+- In this project, the categories are: Cyst, Normal, Stone, Tumor.
+
+WHAT IS TRANSFER LEARNING? (Used in YOLOv8)
+- Instead of training a model from zero, you start with a model that already
+  learned to recognize general image features (like edges, shapes, textures)
+  from millions of other images (ImageNet dataset).
+- Then you "fine-tune" it on your specific task (kidney classification).
+- This usually gives better results with less training time.
+
+================================================================================
+                          END OF DESCRIPTION
+================================================================================
